@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "stdlib.h": "c",
+        "logs.h": "c",
+        "unistd.h": "c",
+        "pcap.h": "c",
+        "nrfjprogdll.h": "c",
+        "jlinkarm_nrf52_nrfjprogdll.h": "c",
+        "dllcommondefinitions.h": "c"
+    }
+}
