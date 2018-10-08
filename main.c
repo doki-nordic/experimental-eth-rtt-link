@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
+#include <time.h>
 //#include <nrfjprogdll.h>
 #include <jlinkarm_nrf52_nrfjprogdll.h>
 
@@ -124,7 +126,7 @@ static void nrfjprog_init(void)
 			if (size != 0)
 				printf("RTT[%i] UP:\t\"%s\" (size: %u bytes)\n", i, name, size);
 
-            if (strcmp(name, "NET_TAP") == 0)
+            if (strcmp(name, "ETH_RTT") == 0)
             {
                 channel_up = i;
             }
@@ -142,7 +144,7 @@ static void nrfjprog_init(void)
 			if (size != 0)
 				printf("RTT[%i] DOWN:\t\"%s\" (size: %u bytes)\n", i, name, size);
 
-            if (strcmp(name, "NET_TAP") == 0)
+            if (strcmp(name, "ETH_RTT") == 0)
             {
                 channel_down = i;
             }
@@ -194,6 +196,7 @@ int main()
                 num = slip_encode(buffer2, buffer, num + 2);
                 uint32_t written = 0;
                 uint8_t* ptr = buffer2;
+                printf("TO RTT:   %d\n", num);
                 while (num > 0)
                 {
                     nrfjprogdll_err_t err = NRFJPROG_rtt_write(channel_down, ptr, num, &written);
@@ -231,6 +234,7 @@ int main()
                     }
                     else
                     {
+                        printf("TO ETH:   %d\n", size - 2);
                         int written = write(tap_fd, packet, size - 2);
                         if (written < 0)
                         {

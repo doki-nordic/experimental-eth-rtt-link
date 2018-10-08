@@ -8,6 +8,8 @@
 #include <sys/ioctl.h>
 #include <linux/if.h>
 #include <linux/if_tun.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 #include "logs.h"
 #include "tap.h"
@@ -15,12 +17,41 @@
 #define TUN_DEV_NAME "/dev/net/tun"
 #define IF_UP_DOWN_SLEEP_US (500 * 1000)
 
-char todo_name[32] =  "dk8";
+
+char todo_name[32] =  "dk8"; // TODO: check if len(name) < IFNAMSIZ
 
 
 int tap_fd = -1;
 static bool is_up = false;
 
+
+#if 0
+static void set_ipv4(const char* address, const char* net_mask)
+{
+	// http://man7.org/linux/man-pages/man7/netdevice.7.html
+
+	struct ifreq req;
+	strcpy(req.ifr_ifrn.ifrn_name, todo_name);
+	struct sockaddr * addr = &req.ifr_ifru.ifru_addr;
+	memset(addr, 0, sizeof(*addr));
+	addr->sa_family = AF_INET;
+	sa_family_t;
+}
+
+static void set_ipv6(const char* address, prefix_len)
+{
+	// https://stackoverflow.com/questions/8240724/assign-ipv6-address-using-ioctl
+
+
+	struct in6_ifreq {
+	    struct in6_addr addr;
+	    uint32_t        prefixlen;
+	    unsigned int    ifindex;
+	};
+
+    struct in6_ifreq ifr6;
+}
+#endif
 
 static void tap_open()
 {
