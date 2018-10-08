@@ -178,7 +178,7 @@ int main()
         FD_ZERO(&rfds);
         FD_SET(tap_fd, &rfds);
         tv.tv_sec = 0;
-        tv.tv_usec = 500;
+        tv.tv_usec = 5000;
         retval = select(tap_fd + 1, &rfds, NULL, NULL, &tv);
         if (retval < 0)
         {
@@ -207,6 +207,8 @@ int main()
                     }
                     if (written < num)
                     {
+                        // TODO: Create write queue (instead of loop) and write remaining data after NRFJPROG_rtt_read if possible
+                        // to prevent dead locks when both board and PC are blocked on RTT write.
                         usleep(500);
                     }
                     num -= written;
