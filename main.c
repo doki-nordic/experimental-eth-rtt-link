@@ -170,7 +170,7 @@ int main()
     slip_decode_init(&ctx);
 
     printf("BEGIN\n");
-    while (time(NULL) < t)
+    while (time(NULL) < t || 1)
     {
         fd_set rfds;
         struct timeval tv;
