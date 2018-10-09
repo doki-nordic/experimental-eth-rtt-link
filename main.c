@@ -9,8 +9,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <signal.h>
+#include <errno.h>
 //#include <nrfjprogdll.h>
 #include <jlinkarm_nrf52_nrfjprogdll.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include "slip.h"
 #include "tap.h"
@@ -43,7 +47,7 @@ u16_t crc16_ccitt(u16_t seed, const u8_t *src, size_t len)
 int channel_up = -1;
 int channel_down = -1;
 
-static void nrfjprog_init(void)
+static bool nrfjprog_init(bool do_exit)
 {
 	unsigned int i, up, down;
 	nrfjprogdll_err_t error;
@@ -52,7 +56,7 @@ static void nrfjprog_init(void)
 	if (error != SUCCESS)
 	{
 		fprintf(stderr, "Cannot open JLink library!\n");
-		exit(1);
+		if (do_exit) exit(1); else return false;
 	}
 
 	//error = NRFJPROG_connect_to_emu_with_snr(JLINK_SN, JLINKARM_SWD_DEFAULT_SPEED_KHZ);
@@ -60,14 +64,14 @@ static void nrfjprog_init(void)
 	if (error != SUCCESS)
 	{
 		fprintf(stderr, "Cannot connect to emmulator!\n");
-		exit(1);
+		if (do_exit) exit(1); else return false;
 	}
 
 	error = NRFJPROG_connect_to_device();
 	if (error != SUCCESS)
 	{
 		fprintf(stderr, "Cannot connect to device!\n");
-		exit(1);
+		if (do_exit) exit(1); else return false;
 	}
 	
 
@@ -75,7 +79,7 @@ static void nrfjprog_init(void)
 	if (error != SUCCESS)
 	{
 		fprintf(stderr, "Cannot start RTT!\n");
-		exit(1);
+		if (do_exit) exit(1); else return false;
 	}
 
 	i = 30;
@@ -87,7 +91,7 @@ static void nrfjprog_init(void)
 		if (error != SUCCESS)
 		{
 			fprintf(stderr, "Cannot check RTT control block status!\n");
-			exit(1);
+		    if (do_exit) exit(1); else return false;
 		}
 
 		if (rtt_found)
@@ -99,14 +103,14 @@ static void nrfjprog_init(void)
 	if (i == 0)
 	{
 		fprintf(stderr, "RTT Control Block not found!\n");
-		exit(1);
+		if (do_exit) exit(1); else return false;
 	}
 
 	error = NRFJPROG_rtt_read_channel_count(&down, &up);
 	if (error != SUCCESS)
 	{
 		fprintf(stderr, "Cannot fetch RTT channel count!\n");
-		exit(1);
+		if (do_exit) exit(1); else return false;
 	}
 
 	for (i = 0; (i < up) || (i < down); i++)
@@ -120,7 +124,7 @@ static void nrfjprog_init(void)
 			if (error != SUCCESS)
 			{
 				fprintf(stderr, "Cannot fetch RTT channel info!\n");
-				exit(1);
+        		if (do_exit) exit(1); else return false;
 			}
 
 			if (size != 0)
@@ -138,7 +142,7 @@ static void nrfjprog_init(void)
 			if (error != SUCCESS)
 			{
 				fprintf(stderr, "Cannot fetch RTT channel info!\n");
-				exit(1);
+        		if (do_exit) exit(1); else return false;
 			}
 
 			if (size != 0)
@@ -150,19 +154,90 @@ static void nrfjprog_init(void)
             }
 		}
 	}
+    return true;
 }
+
+
+static const u8_t reset_frame_data[] = {
+	0, 0, 0, 0, 0, 0,            /* dummy destination MAC address */
+	0, 0, 0, 0, 0, 0,            /* dummy source MAC address */
+	254, 255,                    /* custom eth type */
+	216, 33, 105, 148, 78, 111,  /* randomly generated magic payload */
+	203, 53, 32, 137, 247, 122,  /* randomly generated magic payload */
+	100, 72, 129, 255, 204, 173, /* randomly generated magic payload */
+	};
+
 
 uint8_t buffer[65536];
 uint8_t buffer2[2 * 65536];
 
 DecoderContext ctx;
 
+void reset_rtt()
+{
+    bool ok = false;
+    do {
+        channel_down = -1;
+        channel_up = -1;
+        NRFJPROG_rtt_stop();
+        NRFJPROG_disconnect_from_device();
+        NRFJPROG_disconnect_from_emu();
+        NRFJPROG_close_dll();
+        usleep(100 * 1000);
+        ok = nrfjprog_init(false);
+    } while (!ok);
+}
+
 int main()
 {
-    uint32_t len;
-    nrfjprog_init();
-
     tap_create();
+    
+    do
+    {
+        int pid = fork();
+        if (pid < 0)
+        {
+            return 1;
+        }
+        else if (pid == 0)
+        {
+            break;
+        }
+        else
+        {
+            int wstatus = 0;
+            printf("Child process %d\n", pid);
+            pid_t r = waitpid(pid, &wstatus, 0);
+            printf("PID %d, %d\n", r, WEXITSTATUS(wstatus));
+            usleep(1000 * 1000);
+            /*do
+            {
+                printf("PID %d, 0x%08X\n", r, wstatus);
+                usleep(1000 * 1000);
+                int r = kill(pid, 0);
+                if (r == 0)
+                {
+                    // running
+                    usleep(300 * 1000);
+                }
+                else if (errno == ESRCH)
+                {
+                    printf("Child process %d died\n", pid);
+                    break;
+                }
+                else
+                {
+                    printf("Unexpected error in child process %d\n", pid);
+                    return 1;
+                }
+            } while (1);*/
+        }
+    }
+    while (1);
+
+    uint32_t len;
+    nrfjprog_init(true);
+
     tap_set_state(true);
 
     int t = time(NULL) + 600;
@@ -203,7 +278,11 @@ int main()
                     if (err != SUCCESS)
                     {
                         printf("RTT WRITE ERROR: %d\n", err);
-                        break;
+                        printf("EXITING CHILD\n");
+                        return 44;
+                        //reset_rtt();
+                        //written = 0;
+                        //break;
                     }
                     if (written < num)
                     {
@@ -234,6 +313,12 @@ int main()
                     {
                         printf("CRC ERROR exp=%d,%d, got=%d,%d, size=%d\n", (crc >> 8), (crc & 0xFF), packet[size - 2], packet[size - 1], size - 2);
                     }
+                    else if (size - 2 == sizeof(reset_frame_data) && 0 == memcmp(packet, reset_frame_data, sizeof(reset_frame_data)))
+                    {
+                        printf("RESET PACKET\n");
+                        tap_set_state(false);
+                        tap_set_state(true);
+                    }
                     else
                     {
                         printf("TO ETH:   %d\n", size - 2);
@@ -249,6 +334,13 @@ int main()
                     }
                 }
             }
+        }
+        else if (err != SUCCESS)
+        {
+            printf("RTT READ ERROR: %d\n", err);
+            //reset_rtt();
+            printf("EXITING CHILD\n");
+            return 44;
         }
     }
     printf("END\n");
