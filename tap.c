@@ -10,20 +10,29 @@
 #include <linux/if_tun.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <net/if_arp.h>
 
 #include "logs.h"
+#include "options.h"
 #include "tap.h"
 
 #define TUN_DEV_NAME "/dev/net/tun"
 #define IF_UP_DOWN_SLEEP_US (500 * 1000)
 
+struct in6_ifreq {
+    struct in6_addr ifr6_addr;
+    __u32 ifr6_prefixlen;
+    unsigned int ifr6_ifindex;
+};
 
-char todo_name[32] =  "dk8"; // TODO: check if len(name) < IFNAMSIZ
+char iface_name[32];
 
 
 int tap_fd = -1;
-static bool is_up = false;
+int conf_socket = -1;
 
+#define SUPPORTED_FLAGS (IFF_UP | IFF_BROADCAST | IFF_RUNNING)
+uint32_t tap_flags = 0;
 
 #if 0
 static void set_ipv4(const char* address, const char* net_mask)
@@ -53,6 +62,20 @@ static void set_ipv6(const char* address, prefix_len)
 }
 #endif
 
+void setup_ipv4_data(int socket, unsigned long cmd, struct in_addr * addr, const char* info)
+{
+    struct ifreq ifr;
+
+    memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, iface_name, IFNAMSIZ);
+
+    ifr.ifr_addr.sa_family = AF_INET;
+    memcpy(&((struct sockaddr_in*)(&ifr.ifr_addr))->sin_addr, addr, sizeof(struct in_addr));
+    if (ioctl(socket, cmd, &ifr) < 0) {
+        MY_FATAL("Cannot change IPv4 %s [%d] %s.", info, errno, strerror(errno));
+    }
+}
+
 static void tap_open()
 {
     struct ifreq ifr;
@@ -69,16 +92,99 @@ static void tap_open()
 
     ifr.ifr_flags = IFF_TAP | IFF_NO_PI;
 
-    if (todo_name)
-        strncpy(ifr.ifr_name, todo_name, IFNAMSIZ);
+    if (options.iface)
+        strncpy(ifr.ifr_name, options.iface, IFNAMSIZ);
 
     err = ioctl(tap_fd, TUNSETIFF, (void *)&ifr);
     if (err < 0)
         MY_FATAL("Cannot create TAP interface [%d] %s.", errno, strerror(errno));
 
-    strcpy(todo_name, ifr.ifr_name);
+    memset(iface_name, 0, sizeof(iface_name));
+    strncpy(iface_name, ifr.ifr_name, IFNAMSIZ);
 
-    MY_INFO("TAP interface on \"%s\".", todo_name);
+    MY_INFO("TAP interface on \"%s\".", iface_name);
+
+    if (options.mac_addr_present)
+    {
+        memset(&ifr, 0, sizeof(ifr));
+        strncpy(ifr.ifr_name, iface_name, IFNAMSIZ);
+        ifr.ifr_hwaddr.sa_family = ARPHRD_ETHER;
+        memcpy(ifr.ifr_hwaddr.sa_data, options.mac_addr, sizeof(options.mac_addr));
+	    if (ioctl(tap_fd, SIOCSIFHWADDR, &ifr) < 0) {
+            MY_FATAL("Cannot setup MAC address [%d] %s.", errno, strerror(errno));
+        }
+    }
+    
+    int ipv6_socket = -1;
+    int ipv4_socket = -1;
+
+    if (options.ipv4_address_present || options.ipv4_netmask_present || options.ipv4_broadcast_present || options.mtu > 0 || !options.ipv6_address_present)
+    {
+        if ((ipv4_socket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+            MY_FATAL("YYYY[%d] %s.", errno, strerror(errno));
+        }
+    }
+
+    if (options.mtu > 0)
+    {
+        memset(&ifr, 0, sizeof(ifr));
+        strncpy(ifr.ifr_name, iface_name, IFNAMSIZ);
+        ifr.ifr_mtu = options.mtu;
+		if (ioctl(ipv4_socket, SIOCSIFMTU, &ifr) < 0) {
+            MY_FATAL("Cannot set interface MTU [%d] %s.", errno, strerror(errno));
+		}
+    }
+
+    if (options.ipv4_address_present)
+    {
+        setup_ipv4_data(ipv4_socket, SIOCSIFADDR, &options.ipv4_address, "address");
+    }
+
+    if (options.ipv4_netmask_present)
+    {
+        setup_ipv4_data(ipv4_socket, SIOCSIFNETMASK, &options.ipv4_netmask, "netmask");
+    }
+
+    if (options.ipv4_broadcast_present)
+    {
+        setup_ipv4_data(ipv4_socket, SIOCSIFBRDADDR, &options.ipv4_broadcast, "broadcast address");
+        tap_flags |= IFF_BROADCAST;
+    }
+
+    if (options.ipv6_address_present)
+    {
+        if ((ipv6_socket = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
+            MY_FATAL("YYYY[%d] %s.", errno, strerror(errno));
+        }
+
+        memset(&ifr, 0, sizeof(ifr));
+        strncpy(ifr.ifr_name, iface_name, IFNAMSIZ);
+		if (ioctl(ipv6_socket, SIOGIFINDEX, &ifr) < 0) {
+            MY_FATAL("Cannot get interface index [%d] %s.", errno, strerror(errno));
+		}
+
+        struct in6_ifreq ifr6;
+        memset(&ifr6, 0, sizeof(ifr6));
+        memcpy(&ifr6.ifr6_addr, &options.ipv6_address, sizeof(options.ipv6_address));
+        ifr6.ifr6_prefixlen = options.ipv6_subnet_bits < 0 ? 128 : options.ipv6_subnet_bits;
+        ifr6.ifr6_ifindex = ifr.ifr_ifindex;
+
+		if (ioctl(ipv6_socket, SIOCSIFADDR, &ifr6) < 0) {
+            MY_FATAL("Cannot set IPv6 address [%d] %s.", errno, strerror(errno));
+		}
+
+        close(ipv6_socket);
+    }
+
+    if (ipv4_socket >= 0)
+    {
+        conf_socket = ipv4_socket;
+        if (ipv6_socket >= 0) close(ipv6_socket);
+    }
+    else
+    {
+        conf_socket = ipv6_socket;
+    }
 }
 
 
@@ -88,7 +194,32 @@ static void tap_close()
         return;
     close(tap_fd);
     tap_fd = -1;
-    MY_INFO("TAP interface \"%s\" deleted.", todo_name);
+    close(conf_socket);
+    conf_socket = -1;
+    MY_INFO("TAP interface \"%s\" deleted.", iface_name);
+}
+
+static void set_flags()
+{
+    uint32_t old_flags;
+    struct ifreq ifr;
+
+    memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, iface_name, IFNAMSIZ);
+    
+    if (ioctl(conf_socket, SIOCGIFFLAGS, &ifr) < 0)
+    {
+        MY_FATAL("Cannot read interface flags [%d] %s.", errno, strerror(errno));
+    }
+    old_flags = ifr.ifr_flags & ~SUPPORTED_FLAGS;
+
+    memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, iface_name, IFNAMSIZ);
+    ifr.ifr_flags = old_flags | tap_flags;
+    if (ioctl(conf_socket, SIOCSIFFLAGS, &ifr) < 0)
+    {
+        MY_FATAL("Cannot set interface flags [%d] %s.", errno, strerror(errno));
+    }
 }
 
 
@@ -97,17 +228,17 @@ static void tap_up(bool up)
     char command[256];
     if (tap_fd < 0)
         return;
-    sprintf(command, "ifconfig %s %s", todo_name, up ? "up" : "down");
-    int result = system(command);
-    if (result == 0)
+
+    if (up)
     {
-        MY_INFO("TAP interface is %s.", up ? "up" : "down");
+        tap_flags |= IFF_UP | IFF_RUNNING;
     }
     else
     {
-        MY_ERROR("Cannot set TAP interface %s.", up ? "up" : "down");
+        tap_flags &= ~IFF_UP;
     }
-    usleep(IF_UP_DOWN_SLEEP_US);
+
+    set_flags();
 }
 
 #if 0
@@ -157,11 +288,7 @@ void tap_delete()
 
 void tap_set_state(bool up)
 {
-    if (is_up != up)
-    {
-        tap_up(up);
-        is_up = up;
-    }
+    tap_up(up);
 }
 
 #endif
