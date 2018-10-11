@@ -59,44 +59,23 @@ uint16_t crc16_ccitt(uint16_t seed, const uint8_t *src, size_t len)
 int channel_up = -1;
 int channel_down = -1;
 
-void *nrfjprogdll = NULL;
-
-
-void load_nrfjprog(const char* lib_path)
-{
-    if (nrfjprogdll != NULL) return;
-
-    nrfjprogdll = dlopen(lib_path, RTLD_LAZY);
-    if (!nrfjprogdll)
-    {
-        U_FATAL("NRFJPROG error: nrfjprog library cannot be open.\nSee --nrfjproglib option for help.");
-    }
-
-    dyn_NRFJPROG_open_dll = dlsym(nrfjprogdll, "NRFJPROG_open_dll");
-    dyn_NRFJPROG_dll_version = dlsym(nrfjprogdll, "NRFJPROG_dll_version");
-    dyn_NRFJPROG_connect_to_emu_with_snr = dlsym(nrfjprogdll, "NRFJPROG_connect_to_emu_with_snr");
-    dyn_NRFJPROG_connect_to_emu_without_snr = dlsym(nrfjprogdll, "NRFJPROG_connect_to_emu_without_snr");
-    dyn_NRFJPROG_read_connected_emu_snr = dlsym(nrfjprogdll, "NRFJPROG_read_connected_emu_snr");
-    dyn_NRFJPROG_read_device_family = dlsym(nrfjprogdll, "NRFJPROG_read_device_family");
-    dyn_NRFJPROG_close_dll = dlsym(nrfjprogdll, "NRFJPROG_close_dll");
-    dyn_NRFJPROG_connect_to_device = dlsym(nrfjprogdll, "NRFJPROG_connect_to_device");
-    dyn_NRFJPROG_rtt_start = dlsym(nrfjprogdll, "NRFJPROG_rtt_start");
-    dyn_NRFJPROG_rtt_is_control_block_found = dlsym(nrfjprogdll, "NRFJPROG_rtt_is_control_block_found");
-    dyn_NRFJPROG_rtt_read_channel_count = dlsym(nrfjprogdll, "NRFJPROG_rtt_read_channel_count");
-    dyn_NRFJPROG_rtt_read_channel_info = dlsym(nrfjprogdll, "NRFJPROG_rtt_read_channel_info");
-    dyn_NRFJPROG_rtt_stop = dlsym(nrfjprogdll, "NRFJPROG_rtt_stop");
-    dyn_NRFJPROG_disconnect_from_device = dlsym(nrfjprogdll, "NRFJPROG_disconnect_from_device");
-    dyn_NRFJPROG_disconnect_from_emu = dlsym(nrfjprogdll, "NRFJPROG_disconnect_from_emu");
-    dyn_NRFJPROG_rtt_write = dlsym(nrfjprogdll, "NRFJPROG_rtt_write");
-    dyn_NRFJPROG_rtt_read = dlsym(nrfjprogdll, "NRFJPROG_rtt_read");
-}
 
 nrfjprogdll_err_t open_jlink(device_family_t family)
 {
     int i;
     nrfjprogdll_err_t error;
+    const char *error_symbol;
 
-    load_nrfjprog(options.nrfjprog_lib);
+    error_symbol = load_nrfjprogdll(options.nrfjprog_lib);
+
+    if (error_symbol && error_symbol[0])
+    {
+        U_FATAL("NRFJPROG error: undefined reference to '%s'.\nInvalid nrfjprog library provided.\nSee --nrfjproglib option for help.", error_symbol);
+    }
+    else if (error_symbol)
+    {
+        U_FATAL("NRFJPROG error: nrfjprog library cannot be open.\nSee --nrfjproglib option for help.");
+    }
 
     if (options.jlink_lib == NULL)
     {
@@ -303,20 +282,6 @@ uint8_t buffer2[2 * 65536];
 
 DecoderContext ctx;
 
-void reset_rtt()
-{
-    bool ok = false;
-    do {
-        channel_down = -1;
-        channel_up = -1;
-        NRFJPROG_rtt_stop();
-        NRFJPROG_disconnect_from_device();
-        NRFJPROG_disconnect_from_emu();
-        NRFJPROG_close_dll();
-        usleep(100 * 1000);
-        ok = nrfjprog_init(false);
-    } while (!ok);
-}
 
 #define MAX_WRITE_QUEUE_SIZE (2 * 1024 * 1024)
 
@@ -532,16 +497,10 @@ int main(int argc, char* argv[])
         else if (err != SUCCESS)
         {
             R_FATAL("RTT READ ERROR: %d", err);
-            //reset_rtt();
         }
         write_queue();
     }
     PRINT_INFO("END");
-    //nrfjprogdll_err_t err = NRFJPROG_rtt_write(channel_down, "123\300", 4, &len);
-    //PRINT_INFO("%d %d", err, len);
-
-
-    usleep(1*1000*1000);
 
     tap_delete();
 

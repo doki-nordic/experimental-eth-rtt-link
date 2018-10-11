@@ -32,7 +32,7 @@ all: slip2
 clean:
 	rm -f slip2
 
-slip2: main.c tap.c slip.c options.c
+slip2: main.c tap.c slip.c options.c dyn_nrfjprogdll.c
 	gcc -g -O0 -o $@ -I$(NRFJPROG_REAL_PATH) $^ -ldl
 	$(STRIP) $@
 

@@ -10,7 +10,7 @@
 #include <nrfjprog.h>
 #include <arpa/inet.h>
 
-#include <nrfjprogdll.h>
+#include "dyn_nrfjprogdll.h"
 
 #include "logs.h"
 #include "version.h"
