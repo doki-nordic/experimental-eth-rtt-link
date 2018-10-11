@@ -189,13 +189,11 @@ uint32_t parse_arg_uint(const char *arg, uint32_t min, uint32_t max)
     uint32_t result = strtoull(arg, &end, 0);
     if (end == NULL || end[0] != '\0')
     {
-        fprintf(stderr, "Invalid integer argument '%s'", arg);
-        exit(1);
+        O_FATAL("Invalid integer argument '%s'", arg);
     }
     if (result < min || result > max)
     {
-        fprintf(stderr, "Integer argument '%s' out of range [%d-%d]", arg, min, max);
-        exit(1);
+        O_FATAL("Integer argument '%s' out of range [%d-%d]", arg, min, max);
     }
     return result;
 }
@@ -237,11 +235,6 @@ int ci_strcmp(const char* a, const char* b)
         b++;
     }
     return 0;
-}
-
-
-static void dummy_nrfjprog_callback(const char *msg)
-{
 }
 
 
@@ -312,8 +305,7 @@ void parse_args(int argc, char* argv[])
 
                 if (inet_pton(AF_INET, addr_str, &options.ipv4_address) <= 0)
                 {
-                    fprintf(stderr, "Invalid IPv4 address");
-                    exit(1);
+                    O_FATAL("Invalid IPv4 address");
                 }
                 options.ipv4_address_present = true;
 
@@ -323,8 +315,7 @@ void parse_args(int argc, char* argv[])
             case OPT_IPV4MASK:
                 if (inet_pton(AF_INET, arg, &options.ipv4_netmask) <= 0)
                 {
-                    fprintf(stderr, "Invalid IPv4 netmask");
-                    exit(1);
+                    O_FATAL("Invalid IPv4 netmask");
                 }
                 options.ipv4_netmask_present = true;
 
@@ -333,8 +324,7 @@ void parse_args(int argc, char* argv[])
             case OPT_IPV4BROADCAST:
                 if (inet_pton(AF_INET, arg, &options.ipv4_broadcast) <= 0)
                 {
-                    fprintf(stderr, "Invalid IPv4 broadcast address");
-                    exit(1);
+                    O_FATAL("Invalid IPv4 broadcast address");
                 }
                 options.ipv4_broadcast_present = true;
 
@@ -352,8 +342,7 @@ void parse_args(int argc, char* argv[])
 
                 if (inet_pton(AF_INET6, addr_str, &options.ipv6_address) <= 0)
                 {
-                    fprintf(stderr, "Invalid IPv6 address");
-                    exit(1);
+                    O_FATAL("Invalid IPv6 address");
                 }
 
                 options.ipv6_address_present = true;
@@ -383,8 +372,7 @@ void parse_args(int argc, char* argv[])
                 }
                 if (i != 14)
                 {
-                    fprintf(stderr, "Invalid MAC address");
-                    exit(1);
+                    O_FATAL("Invalid MAC address");
                 }
                 temp[i] = 0;
                 addr = strtoll(temp, NULL, 0);
@@ -426,8 +414,7 @@ void parse_args(int argc, char* argv[])
                 }
                 else
                 {
-                    fprintf(stderr, "Invalid family name");
-                    exit(1);
+                    O_FATAL("Invalid family name");
                 }
                 break;
 
@@ -456,15 +443,13 @@ void parse_args(int argc, char* argv[])
                 break;
 
             default:
-                fprintf(stderr, "Unexpected getopt error %02X", c);
-                exit(1);
+                O_FATAL("Unexpected getopt error %02X", c);
         }
     } while (c >= 0);
 
     if (optind < argc)
     {
-        printf ("Unexpected parameter '%s'\n", argv[optind]);
-        exit(1);
+        O_FATAL("Unexpected parameter '%s'\n", argv[optind]);
     }
 
     if (show_version)
@@ -482,15 +467,13 @@ void parse_args(int argc, char* argv[])
         nrfjprogdll_err_t err = open_jlink(options.family);
         if (err != SUCCESS)
         {
-            fprintf(stderr, "NRFJPROG error %d\n", err);
-            exit(1);
+            O_FATAL("NRFJPROG error %d", err);
         }
         err = NRFJPROG_dll_version(&major, &minor, revision);
         NRFJPROG_close_dll();
         if (err != SUCCESS)
         {
-            fprintf(stderr, "NRFJPROG error %d\n", err);
-            exit(1);
+            O_FATAL("NRFJPROG error %d", err);
         }
         printf("Loaded SEGGER J-Link:      %d.%d%s\n", major, minor, revision);
 

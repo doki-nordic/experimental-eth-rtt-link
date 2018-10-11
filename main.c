@@ -41,10 +41,7 @@ void infloop() { while (1); }
 
 static void nrfjprog_callback(const char *msg)
 {
-    if (options.verbose >= LOG_NRFJPROG)
-    {
-        fprintf(stderr, "%s\n", msg);
-    }
+    PRINT_NRFJPROG("%s", msg);
 }
 
 uint16_t crc16_ccitt(uint16_t seed, const uint8_t *src, size_t len)
@@ -73,8 +70,7 @@ void load_nrfjprog(const char* lib_path)
     nrfjprogdll = dlopen(lib_path, RTLD_LAZY);
     if (!nrfjprogdll)
     {
-        fprintf(stderr, "NRFJPROG error: nrfjprog library cannot be open.\nSee --nrfjproglib option for help.\n");
-        exit(32);
+        U_FATAL("NRFJPROG error: nrfjprog library cannot be open.\nSee --nrfjproglib option for help.");
     }
 
     dyn_NRFJPROG_open_dll = dlsym(nrfjprogdll, "NRFJPROG_open_dll");
@@ -122,13 +118,13 @@ nrfjprogdll_err_t open_jlink(device_family_t family)
 
     if (error == JLINKARM_DLL_COULD_NOT_BE_OPENED)
     {
-        fprintf(stderr, "NRFJPROG error: J-Link library cannot be open. See --jlinklib option in help.\n");
+        U_FATAL("NRFJPROG error: J-Link library cannot be open. See --jlinklib option in help.");
     }
 
     return error;
 }
 
-static bool nrfjprog_init(bool do_exit)
+static bool nrfjprog_init()
 {
 	unsigned int i, up, down;
 	nrfjprogdll_err_t error;
@@ -138,8 +134,7 @@ static bool nrfjprog_init(bool do_exit)
         error = open_jlink(UNKNOWN_FAMILY);
         if (error != SUCCESS)
         {
-            fprintf(stderr, "Cannot open JLink library %d!\n", error);
-            if (do_exit) exit(1); else return false;
+            R_FATAL("Cannot open JLink library %d!", error);
         }
         if (options.snr)
         {
@@ -151,23 +146,20 @@ static bool nrfjprog_init(bool do_exit)
         }
         if (error != SUCCESS)
         {
-            fprintf(stderr, "Cannot connect to emmulator to detect device family!\n");
-            if (do_exit) exit(1); else return false;
+            R_FATAL("Cannot connect to emmulator to detect device family!");
         }
         if (!options.snr)
         {
             error = NRFJPROG_read_connected_emu_snr(&options.snr);
             if (error != SUCCESS)
             {
-                fprintf(stderr, "Cannot read SNR!\n");
-                if (do_exit) exit(1); else return false;
+                R_FATAL("Cannot read SNR!");
             }
         }
         error = NRFJPROG_read_device_family(&options.family);
         if (error != SUCCESS)
         {
-            fprintf(stderr, "Cannot detect device family!\n");
-            if (do_exit) exit(1); else return false;
+            R_FATAL("Cannot detect device family!");
         }
         NRFJPROG_close_dll();
     }
@@ -175,40 +167,36 @@ static bool nrfjprog_init(bool do_exit)
 	error = open_jlink(options.family);
 	if (error != SUCCESS)
 	{
-		fprintf(stderr, "Cannot open JLink library!\n");
-		if (do_exit) exit(1); else return false;
+		R_FATAL("Cannot open JLink library!");
 	}
 
     if (options.snr)
     {
 	    error = NRFJPROG_connect_to_emu_with_snr(options.snr, options.speed);
-        printf("snr: %d, speed: %d\n", options.snr, options.speed);
+        PRINT_INFO("snr: %d, speed: %d", options.snr, options.speed);
     }
     else
     {
 	    error = NRFJPROG_connect_to_emu_without_snr(options.speed);
-        printf("speed: %d\n", options.speed);
+        PRINT_INFO("speed: %d", options.speed);
     }
 
 	if (error != SUCCESS)
 	{
-		fprintf(stderr, "Cannot connect to emmulator!\n");
-		if (do_exit) exit(1); else return false;
+		R_FATAL("Cannot connect to emmulator!");
 	}
 
 	error = NRFJPROG_connect_to_device();
 	if (error != SUCCESS)
 	{
-		fprintf(stderr, "Cannot connect to device!\n");
-		if (do_exit) exit(1); else return false;
+		R_FATAL("Cannot connect to device!");
 	}
 	
 
 	error = NRFJPROG_rtt_start();
 	if (error != SUCCESS)
 	{
-		fprintf(stderr, "Cannot start RTT!\n");
-		if (do_exit) exit(1); else return false;
+		R_FATAL("Cannot start RTT!");
 	}
 
 	i = 30;
@@ -219,8 +207,7 @@ static bool nrfjprog_init(bool do_exit)
 		error = NRFJPROG_rtt_is_control_block_found(&rtt_found);
 		if (error != SUCCESS)
 		{
-			fprintf(stderr, "Cannot check RTT control block status!\n");
-		    if (do_exit) exit(1); else return false;
+			R_FATAL("Cannot check RTT control block status!");
 		}
 
 		if (rtt_found)
@@ -231,15 +218,13 @@ static bool nrfjprog_init(bool do_exit)
 
 	if (i == 0)
 	{
-		fprintf(stderr, "RTT Control Block not found!\n");
-		if (do_exit) exit(1); else return false;
+		R_FATAL("RTT Control Block not found!");
 	}
 
 	error = NRFJPROG_rtt_read_channel_count(&down, &up);
 	if (error != SUCCESS)
 	{
-		fprintf(stderr, "Cannot fetch RTT channel count!\n");
-		if (do_exit) exit(1); else return false;
+		R_FATAL("Cannot fetch RTT channel count!");
 	}
 
 	for (i = 0; (i < up) || (i < down); i++)
@@ -252,12 +237,12 @@ static bool nrfjprog_init(bool do_exit)
 			error = NRFJPROG_rtt_read_channel_info(i, UP_DIRECTION, name, sizeof(name), &size);
 			if (error != SUCCESS)
 			{
-				fprintf(stderr, "Cannot fetch RTT channel info!\n");
-        		if (do_exit) exit(1); else return false;
+				PRINT_ERROR("Cannot fetch RTT channel info!");
+                continue;
 			}
 
 			if (size != 0)
-				printf("RTT[%i] UP:\t\"%s\" (size: %u bytes)\n", i, name, size);
+				PRINT_INFO("RTT[%i] UP:\t\"%s\" (size: %u bytes)", i, name, size);
 
             if (strcmp(name, "ETH_RTT") == 0)
             {
@@ -270,12 +255,12 @@ static bool nrfjprog_init(bool do_exit)
 			error = NRFJPROG_rtt_read_channel_info(i, DOWN_DIRECTION, name, sizeof(name), &size);
 			if (error != SUCCESS)
 			{
-				fprintf(stderr, "Cannot fetch RTT channel info!\n");
-        		if (do_exit) exit(1); else return false;
+				PRINT_ERROR("Cannot fetch RTT channel info!");
+                continue;
 			}
 
 			if (size != 0)
-				printf("RTT[%i] DOWN:\t\"%s\" (size: %u bytes)\n", i, name, size);
+				PRINT_INFO("RTT[%i] DOWN:\t\"%s\" (size: %u bytes)", i, name, size);
 
             if (strcmp(name, "ETH_RTT") == 0)
             {
@@ -283,6 +268,11 @@ static bool nrfjprog_init(bool do_exit)
             }
 		}
 	}
+
+    if (channel_down < 0 || channel_up < 0)
+    {
+        R_FATAL("Cannot find ethernet RTT channel.");
+    }
     return true;
 }
 
@@ -338,10 +328,14 @@ int main(int argc, char* argv[])
             else
             {
                 int wstatus = 0;
-                printf("Child process %d\n", pid);
+                PRINT_INFO("Child process %d", pid);
                 pid_t r = waitpid(pid, &wstatus, 0);
                 tap_set_state(false);
-                printf("PID %d, %d\n", r, WEXITSTATUS(wstatus));
+                PRINT_INFO("PID %d, %d", r, WEXITSTATUS(wstatus));
+                if (WEXITSTATUS(wstatus) != RECOVERABLE_FATAL_CODE)
+                {
+                    exit(wstatus);
+                }
                 usleep(1000 * 1000);
             }
         }
@@ -357,7 +351,7 @@ int main(int argc, char* argv[])
 
     slip_decode_init(&ctx);
 
-    printf("BEGIN\n");
+    PRINT_INFO("BEGIN");
     while (time(NULL) < t || 1)
     {
         fd_set rfds;
@@ -375,7 +369,7 @@ int main(int argc, char* argv[])
         else if (retval)
         {
             int num = read(tap_fd, buffer, sizeof(buffer) - 2);
-            printf("FROM ETH: %d\n", num);
+            PRINT_INFO("FROM ETH: %d", num);
             if (num > 0)
             {
                 uint16_t crc = crc16_ccitt(0xFFFF, buffer, num);
@@ -384,14 +378,14 @@ int main(int argc, char* argv[])
                 num = slip_encode(buffer2, buffer, num + 2);
                 uint32_t written = 0;
                 uint8_t* ptr = buffer2;
-                printf("TO RTT:   %d\n", num);
+                PRINT_INFO("TO RTT:   %d", num);
                 while (num > 0)
                 {
                     nrfjprogdll_err_t err = NRFJPROG_rtt_write(channel_down, ptr, num, &written);
                     if (err != SUCCESS)
                     {
-                        printf("RTT WRITE ERROR: %d\n", err);
-                        printf("EXITING CHILD\n");
+                        PRINT_INFO("RTT WRITE ERROR: %d", err);
+                        PRINT_INFO("EXITING CHILD");
                         return 44;
                         //reset_rtt();
                         //written = 0;
@@ -413,7 +407,7 @@ int main(int argc, char* argv[])
         if (err == SUCCESS && len > 0)
         {
             int i;
-            printf("FROM RTT: %d\n", len);
+            PRINT_INFO("FROM RTT: %d", len);
             int packets = slip_decode_put(&ctx, buffer, len);
             for (i = 0; i < packets; i++)
             {
@@ -424,25 +418,25 @@ int main(int argc, char* argv[])
                     uint16_t crc = crc16_ccitt(0xFFFF, packet, size - 2);
                     if (packet[size - 2] != (crc >> 8) || packet[size - 1] != (crc & 0xFF))
                     {
-                        printf("CRC ERROR exp=%d,%d, got=%d,%d, size=%d\n", (crc >> 8), (crc & 0xFF), packet[size - 2], packet[size - 1], size - 2);
+                        PRINT_INFO("CRC ERROR exp=%d,%d, got=%d,%d, size=%d", (crc >> 8), (crc & 0xFF), packet[size - 2], packet[size - 1], size - 2);
                     }
                     else if (size - 2 == sizeof(reset_frame_data) && 0 == memcmp(packet, reset_frame_data, sizeof(reset_frame_data)))
                     {
-                        printf("RESET PACKET\n");
+                        PRINT_INFO("RESET PACKET");
                         tap_set_state(false);
                         tap_set_state(true);
                     }
                     else
                     {
-                        printf("TO ETH:   %d\n", size - 2);
+                        PRINT_INFO("TO ETH:   %d", size - 2);
                         int written = write(tap_fd, packet, size - 2);
                         if (written < 0)
                         {
-                            printf("TAP write error\n");
+                            PRINT_INFO("TAP write error");
                         }
                         else if (written != size - 2)
                         {
-                            printf("Unexpected error\n");
+                            PRINT_INFO("Unexpected error");
                         }
                     }
                 }
@@ -450,15 +444,15 @@ int main(int argc, char* argv[])
         }
         else if (err != SUCCESS)
         {
-            printf("RTT READ ERROR: %d\n", err);
+            PRINT_INFO("RTT READ ERROR: %d", err);
             //reset_rtt();
-            printf("EXITING CHILD\n");
+            PRINT_INFO("EXITING CHILD");
             return 44;
         }
     }
-    printf("END\n");
+    PRINT_INFO("END");
     //nrfjprogdll_err_t err = NRFJPROG_rtt_write(channel_down, "123\300", 4, &len);
-    //printf("%d %d\n", err, len);
+    //PRINT_INFO("%d %d", err, len);
 
 
     usleep(1*1000*1000);

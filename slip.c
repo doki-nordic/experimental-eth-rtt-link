@@ -70,7 +70,7 @@ size_t slip_decode_put(DecoderContext *ctx, uint8_t *input, size_t length)
     }
     if (input < end_of_input)
     {
-        MY_ERROR("SLIP decoder buffer overflow. Lost %d bytes.", (int)(end_of_input - input));
+        PRINT_ERROR("SLIP decoder buffer overflow. Lost %d bytes.", (int)(end_of_input - input));
     }
     ctx->writeIndex = output - &ctx->buffer[0];
     return result;
@@ -114,7 +114,7 @@ size_t slip_decode_read(DecoderContext *ctx, uint8_t **result)
         {
             if (input >= end_of_input)
             {
-                MY_ERROR("Invalid byte stuffing indicator at the end of packet");
+                PRINT_INFO("Invalid byte stuffing indicator at the end of packet");
                 break;
             }
             else if (*input == SLIP_ESC_END)
@@ -127,7 +127,7 @@ size_t slip_decode_read(DecoderContext *ctx, uint8_t **result)
             }
             else
             {
-                MY_ERROR("Invalid byte stuffing indicator \"\\x%02X\"", *input);
+                PRINT_INFO("Invalid byte stuffing indicator \"\\x%02X\"", *input);
             }
             input++;
         }
@@ -147,11 +147,11 @@ void test_encoder()
     size_t length = slip_encode(result, input, sizeof(input) - 1);
     if (length != sizeof(expected) - 1 || memcmp(result, expected, sizeof(expected) - 1) != 0)
     {
-        MY_FATAL("SLIP decoder self test error");
+        U_FATAL("SLIP decoder self test error");
     }
     else
     {
-        MY_INFO("SLIP decoder self test ok");
+        PRINT_INFO("SLIP decoder self test ok");
     }
 }
 
@@ -213,15 +213,15 @@ void test_decoder()
         }
         int result = slip_decode_put(&ctx, input[i].input, strlen(input[i].input));
         if (result != input[i].result)
-            MY_FATAL("Test %d failed", i);
+            U_FATAL("Test %d failed", i);
         for (k = 0; k < input[i].reads; k++)
         {
             uint8_t *buffer;
             int count = slip_decode_read(&ctx, &buffer);
             if (count != strlen(input[i].outputs[k]))
-                MY_FATAL("Test %d failed", i);
+                U_FATAL("Test %d failed", i);
             if (memcmp(input[i].outputs[k], buffer, count) != 0)
-                MY_FATAL("Test %d failed", i);
+                U_FATAL("Test %d failed", i);
         }
     }
 }

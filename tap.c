@@ -72,11 +72,11 @@ void setup_ipv4_data(int socket, unsigned long cmd, struct in_addr * addr, const
     ifr.ifr_addr.sa_family = AF_INET;
     memcpy(&((struct sockaddr_in*)(&ifr.ifr_addr))->sin_addr, addr, sizeof(struct in_addr));
     if (ioctl(socket, cmd, &ifr) < 0) {
-        MY_FATAL("Cannot change IPv4 %s [%d] %s.", info, errno, strerror(errno));
+        U_FATAL("Cannot change IPv4 %s [%d] %s.", info, errno, strerror(errno));
     }
 }
 
-static void tap_open()
+void tap_create()
 {
     struct ifreq ifr;
     int err;
@@ -86,7 +86,7 @@ static void tap_open()
 
     tap_fd = open(TUN_DEV_NAME, O_RDWR);
     if (tap_fd < 0)
-        MY_FATAL("Cannot open TUN/TAP driver [%d] %s.", errno, strerror(errno));
+        U_ERRNO_FATAL("Cannot open TUN/TAP driver.");
 
     memset(&ifr, 0, sizeof(ifr));
 
@@ -97,12 +97,12 @@ static void tap_open()
 
     err = ioctl(tap_fd, TUNSETIFF, (void *)&ifr);
     if (err < 0)
-        MY_FATAL("Cannot create TAP interface [%d] %s.", errno, strerror(errno));
+        U_ERRNO_FATAL("Cannot create TAP interface.");
 
     memset(iface_name, 0, sizeof(iface_name));
     strncpy(iface_name, ifr.ifr_name, IFNAMSIZ);
 
-    MY_INFO("TAP interface on \"%s\".", iface_name);
+    PRINT_INFO("TAP interface on \"%s\".", iface_name);
 
     if (options.mac_addr_present)
     {
@@ -111,7 +111,7 @@ static void tap_open()
         ifr.ifr_hwaddr.sa_family = ARPHRD_ETHER;
         memcpy(ifr.ifr_hwaddr.sa_data, options.mac_addr, sizeof(options.mac_addr));
 	    if (ioctl(tap_fd, SIOCSIFHWADDR, &ifr) < 0) {
-            MY_FATAL("Cannot setup MAC address [%d] %s.", errno, strerror(errno));
+            U_ERRNO_FATAL("Cannot setup MAC address.");
         }
     }
     
@@ -121,7 +121,7 @@ static void tap_open()
     if (options.ipv4_address_present || options.ipv4_netmask_present || options.ipv4_broadcast_present || options.mtu > 0 || !options.ipv6_address_present)
     {
         if ((ipv4_socket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-            MY_FATAL("YYYY[%d] %s.", errno, strerror(errno));
+            U_ERRNO_FATAL("Cannot create socket for IPv4.");
         }
     }
 
@@ -131,7 +131,7 @@ static void tap_open()
         strncpy(ifr.ifr_name, iface_name, IFNAMSIZ);
         ifr.ifr_mtu = options.mtu;
 		if (ioctl(ipv4_socket, SIOCSIFMTU, &ifr) < 0) {
-            MY_FATAL("Cannot set interface MTU [%d] %s.", errno, strerror(errno));
+            U_ERRNO_FATAL("Cannot set interface MTU.");
 		}
     }
 
@@ -154,13 +154,13 @@ static void tap_open()
     if (options.ipv6_address_present)
     {
         if ((ipv6_socket = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
-            MY_FATAL("YYYY[%d] %s.", errno, strerror(errno));
+            U_ERRNO_FATAL("Cannot create IPv6 socket.");
         }
 
         memset(&ifr, 0, sizeof(ifr));
         strncpy(ifr.ifr_name, iface_name, IFNAMSIZ);
 		if (ioctl(ipv6_socket, SIOGIFINDEX, &ifr) < 0) {
-            MY_FATAL("Cannot get interface index [%d] %s.", errno, strerror(errno));
+            U_ERRNO_FATAL("Cannot get interface index.");
 		}
 
         struct in6_ifreq ifr6;
@@ -170,7 +170,7 @@ static void tap_open()
         ifr6.ifr6_ifindex = ifr.ifr_ifindex;
 
 		if (ioctl(ipv6_socket, SIOCSIFADDR, &ifr6) < 0) {
-            MY_FATAL("Cannot set IPv6 address [%d] %s.", errno, strerror(errno));
+            U_ERRNO_FATAL("Cannot set IPv6 address.");
 		}
 
         close(ipv6_socket);
@@ -188,7 +188,7 @@ static void tap_open()
 }
 
 
-static void tap_close()
+void tap_delete()
 {
     if (tap_fd < 0)
         return;
@@ -196,7 +196,7 @@ static void tap_close()
     tap_fd = -1;
     close(conf_socket);
     conf_socket = -1;
-    MY_INFO("TAP interface \"%s\" deleted.", iface_name);
+    PRINT_INFO("TAP interface \"%s\" deleted.", iface_name);
 }
 
 static void set_flags()
@@ -209,7 +209,7 @@ static void set_flags()
     
     if (ioctl(conf_socket, SIOCGIFFLAGS, &ifr) < 0)
     {
-        MY_FATAL("Cannot read interface flags [%d] %s.", errno, strerror(errno));
+        U_ERRNO_FATAL("Cannot read interface flags.");
     }
     old_flags = ifr.ifr_flags & ~SUPPORTED_FLAGS;
 
@@ -218,12 +218,12 @@ static void set_flags()
     ifr.ifr_flags = old_flags | tap_flags;
     if (ioctl(conf_socket, SIOCSIFFLAGS, &ifr) < 0)
     {
-        MY_FATAL("Cannot set interface flags [%d] %s.", errno, strerror(errno));
+        U_ERRNO_FATAL("Cannot set interface flags.");
     }
 }
 
 
-static void tap_up(bool up)
+void tap_set_state(bool up)
 {
     char command[256];
     if (tap_fd < 0)
@@ -240,207 +240,3 @@ static void tap_up(bool up)
 
     set_flags();
 }
-
-#if 0
-
-void tap_create()
-{
-    tap_open();
-    tap_up(true);
-    is_up = true;
-}
-
-void tap_delete()
-{
-    tap_close();
-    is_up = false;
-}
-
-void tap_set_state(bool up)
-{
-    if (is_up != up)
-    {
-        if (up)
-        {
-            tap_open();
-            tap_up(true);
-        }
-        else
-        {
-            tap_close();
-        }
-        is_up = up;
-    }
-}
-
-
-#else
-
-void tap_create()
-{
-    tap_open();
-}
-
-void tap_delete()
-{
-    tap_close();
-}
-
-void tap_set_state(bool up)
-{
-    tap_up(up);
-}
-
-#endif
-
-
-#if 0
-
-#include <unistd.h>
-#include <string.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include <linux/if.h>
-#include <linux/if_tun.h>
-
-#include "logs.h"
-#include "pcap.h"
-
-#include "tap.h"
-
-#define TUN_DEV_NAME "/dev/net/tun"
-#define READ_ERROR_SLEEP_US (2 * 1000 * 1000)
-#define IF_UP_DOWN_SLEEP_US (500 * 1000)
-
-static int tap_fd = -1;
-static char if_name[64] = "";
-static bool isUp = false;
-
-static int pcap = -1;
-
-void tapAlloc(const char *name)
-{
-    struct ifreq ifr;
-    int err;
-
-    if (tap_fd >= 0)
-        return;
-
-    tap_fd = open(TUN_DEV_NAME, O_RDWR);
-    if (tap_fd < 0)
-        MY_FATAL("Cannot open TUN/TAP driver [%d] %s.", errno, strerror(errno));
-
-    if (pcap <= 0)
-    {
-        pcap = open("/tmp/slip_decode_tap.pcap", O_WRONLY | O_CREAT | O_TRUNC, 0777);
-        if (pcap < 0)
-            MY_FATAL("Cannot open pcap output file [%d] %s.", errno, strerror(errno));
-        pcapInit(pcap);
-    }
-
-    memset(&ifr, 0, sizeof(ifr));
-
-    ifr.ifr_flags = IFF_TAP | IFF_NO_PI;
-
-    if (name)
-        strncpy(ifr.ifr_name, name, IFNAMSIZ);
-
-    err = ioctl(tap_fd, TUNSETIFF, (void *)&ifr);
-    if (err < 0)
-        MY_FATAL("Cannot create TAP interface [%d] %s.", errno, strerror(errno));
-
-    strcpy(if_name, ifr.ifr_name);
-
-    isUp = false;
-
-    MY_INFO("TAP interface on \"%s\".", if_name);
-    pcapLog(pcap, "START");
-}
-
-void tapDelete()
-{
-    if (tap_fd < 0)
-        return;
-    close(tap_fd);
-    tap_fd = -1;
-    isUp = false;
-    MY_INFO("TAP interface \"%s\" deleted.", if_name);
-    pcapLog(pcap, "END");
-}
-
-void tapUp(bool up)
-{
-    up = up || true; // TODO: make it better
-    char command[256];
-    if (tap_fd < 0 || isUp == up)
-        return;
-    sprintf(command, "ifconfig %s %s", if_name, up ? "up" : "down");
-    int result = system(command);
-    if (result == 0)
-    {
-        MY_INFO("TAP interface is %s.", up ? "up" : "down");
-    }
-    else
-    {
-        MY_ERROR("Cannot set TAP interface %s.", up ? "up" : "down");
-    }
-    isUp = up;
-    pcapLog(pcap, up ? "UP" : "DOWN");
-    usleep(IF_UP_DOWN_SLEEP_US);
-}
-
-void tapWrite(const uint8_t *data, int length)
-{
-    if (tap_fd < 0)
-        MY_ERROR("Unexpected tapWrite.");
-
-    int n = write(tap_fd, data, length);
-
-    if (n < 0)
-    {
-        MY_ERROR("Write to TAP failed [%d] %s.", errno, strerror(errno));
-        pcapLog(pcap, "WRITE ERROR");
-        pcapWrite(pcap, data, length, length);
-    }
-    else if (n < length)
-    {
-        MY_ERROR("Unfinished write to TAP, requested %d, written %d.", length, n);
-        pcapLog(pcap, "CUTTED FRAME");
-        pcapWrite(pcap, data, n, length);
-    }
-    else
-    {
-        pcapWrite(pcap, data, n, n);
-    }
-}
-
-int tapRead(uint8_t *data, int bufferSize)
-{
-    if (tap_fd < 0)
-    {
-        MY_ERROR("Unexpected tapRead.");
-        pcapLog(pcap, "UNEXPECTED READ");
-        usleep(READ_ERROR_SLEEP_US);
-        return -1;
-    }
-
-    int n = read(tap_fd, data, bufferSize);
-
-    if (n < 0)
-    {
-        MY_ERROR("Read from TAP failed [%d] %s.", errno, strerror(errno));
-        pcapLog(pcap, "READ ERROR");
-        usleep(READ_ERROR_SLEEP_US);
-    }
-    else
-    {
-        pcapWrite(pcap, data, n, n);
-    }
-
-    return n;
-}
-
-#endif
