@@ -8,7 +8,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
 #include <signal.h>
 #include <errno.h>
 #include <nrfjprog.h>
@@ -307,6 +306,105 @@ void reset_rtt()
     } while (!ok);
 }
 
+#define MAX_WRITE_QUEUE_SIZE (2 * 1024 * 1024)
+
+struct WritePart
+{
+    struct WritePart *next;
+    uint32_t size;
+    uint32_t start;
+    uint8_t data[1];
+};
+
+struct WritePart* queue_start = NULL;
+struct WritePart* queue_end = NULL;
+uint32_t queue_buffered = 0;
+
+void write_queue()
+{
+    while (queue_start)
+    {
+        uint32_t written = 0;
+        uint32_t num = queue_start->size - queue_start->start;
+        nrfjprogdll_err_t err = NRFJPROG_rtt_write(channel_down, &queue_start->data[queue_start->start], num, &written);
+        if (err != SUCCESS)
+        {
+            R_FATAL("RTT WRITE ERROR: %d", err);
+        }
+        else if (written == 0)
+        {
+            return;
+        }
+        else if (written < num)
+        {
+            queue_start->start += written;
+            return;
+        }
+        else
+        {
+            struct WritePart* old_part = queue_start;
+            queue_start = queue_start->next;
+            queue_buffered -= old_part->size;
+            PRINT_DEBUG("Got from queue %d, total %d", old_part->size, queue_buffered);
+            free(old_part);
+            if (queue_start == NULL)
+            {
+                queue_end = NULL;
+            }
+        }
+    }
+}
+
+
+void buffered_rtt_write(uint8_t* data, int num)
+{
+    struct WritePart* item;
+
+    write_queue();
+
+    if (queue_start == NULL)
+    {
+        uint32_t written = 0;
+        nrfjprogdll_err_t err = NRFJPROG_rtt_write(channel_down, data, num, &written);
+        if (err != SUCCESS)
+        {
+            R_FATAL("RTT WRITE ERROR: %d", err);
+        }
+        else if (written >= num)
+        {
+            return;
+        }
+        data += written;
+        num -= written;
+    }
+
+    while (queue_buffered + num > MAX_WRITE_QUEUE_SIZE && queue_start && queue_start->next)
+    {
+        item = queue_start->next;
+        queue_start->next = queue_start->next->next;
+        PRINT_ERROR("Write queue overflow. Removing %d bytes.", item->size);
+        queue_buffered -= item->size;
+        free(item);
+    }
+
+    item = malloc(sizeof(struct WritePart) + num);
+    item->next = NULL;
+    item->size = num;
+    item->start = 0;
+    memcpy(item->data, data, num);
+    if (queue_end)
+    {
+        queue_end->next = item;
+    }
+    else
+    {
+        queue_start = item;
+    }
+    queue_end = item;
+    queue_buffered += num;
+    PRINT_DEBUG("Written to queue %d, total %d", num, queue_buffered);
+}
+
 int main(int argc, char* argv[])
 {
     parse_args(argc, argv);
@@ -319,7 +417,7 @@ int main(int argc, char* argv[])
             int pid = fork();
             if (pid < 0)
             {
-                return 1;
+                U_ERRNO_FATAL("Cannot fork process!");
             }
             else if (pid == 0)
             {
@@ -347,12 +445,10 @@ int main(int argc, char* argv[])
 
     tap_set_state(true);
 
-    int t = time(NULL) + 600;
-
     slip_decode_init(&ctx);
 
     PRINT_INFO("BEGIN");
-    while (time(NULL) < t || 1)
+    while (true)
     {
         fd_set rfds;
         struct timeval tv;
@@ -377,29 +473,8 @@ int main(int argc, char* argv[])
                 buffer[num + 1] = crc & 0xFF;
                 num = slip_encode(buffer2, buffer, num + 2);
                 uint32_t written = 0;
-                uint8_t* ptr = buffer2;
                 PRINT_INFO("TO RTT:   %d", num);
-                while (num > 0)
-                {
-                    nrfjprogdll_err_t err = NRFJPROG_rtt_write(channel_down, ptr, num, &written);
-                    if (err != SUCCESS)
-                    {
-                        PRINT_INFO("RTT WRITE ERROR: %d", err);
-                        PRINT_INFO("EXITING CHILD");
-                        return 44;
-                        //reset_rtt();
-                        //written = 0;
-                        //break;
-                    }
-                    if (written < num)
-                    {
-                        // TODO: Create write queue (instead of loop) and write remaining data after NRFJPROG_rtt_read if possible
-                        // to prevent dead locks when both board and PC are blocked on RTT write.
-                        usleep(500);
-                    }
-                    num -= written;
-                    ptr += written;
-                }
+                buffered_rtt_write(buffer2, num);
             }
         }
         len = -1;
@@ -444,11 +519,10 @@ int main(int argc, char* argv[])
         }
         else if (err != SUCCESS)
         {
-            PRINT_INFO("RTT READ ERROR: %d", err);
+            R_FATAL("RTT READ ERROR: %d", err);
             //reset_rtt();
-            PRINT_INFO("EXITING CHILD");
-            return 44;
         }
+        write_queue();
     }
     PRINT_INFO("END");
     //nrfjprogdll_err_t err = NRFJPROG_rtt_write(channel_down, "123\300", 4, &len);
@@ -460,5 +534,5 @@ int main(int argc, char* argv[])
     tap_delete();
 
     NRFJPROG_close_dll();
-    return 3;
+    return 0;
 }
