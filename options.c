@@ -8,8 +8,9 @@
 #include <stdbool.h>
 #include <netinet/in.h>
 #include <nrfjprog.h>
-#include <nrfjprogdll.h>
 #include <arpa/inet.h>
+
+#include "dyn_nrfjprogdll.h"
 
 #include "logs.h"
 #include "version.h"
@@ -32,11 +33,12 @@
 #define OPT_JLINKLIB (0x100 + 4)
 #define OPT_IPV4MASK (0x100 + 5)
 #define OPT_IPV4BROADCAST (0x100 + 6)
+#define OPT_NRFJPROGLIB (0x100 + 7)
 
 
 #define DESC(text) "\0" text
 #define END "\0"
-#define HELP_OPT_LEN 16
+#define HELP_OPT_LEN 17
 #define _STR2(x) #x
 #define STR(x) _STR2(x)
 
@@ -56,6 +58,7 @@ struct options_t options =
     .family = UNKNOWN_FAMILY,
     .speed = JLINKARM_SWD_DEFAULT_SPEED_KHZ,
     .jlink_lib = NULL,
+    .nrfjprog_lib = "libnrfjprogdll.so",
     .poll_time_us = 5 * 1000,
     .no_rtt_retry = false,
 };
@@ -121,6 +124,11 @@ static struct option long_options[] =
         DESC("it is on its default location:")
         DESC("/opt/SEGGER/JLink/libjlinkarm.so")
         END, required_argument, 0, OPT_JLINKLIB},
+    {"nrfjproglib"
+        DESC("Path to nrfjprog library (libnrfjprogdll.so).")
+        DESC("There is no need to provide it if dlopen() can find")
+        DESC("it.")
+        END, required_argument, 0, OPT_NRFJPROGLIB},
     {"polltime"
         DESC("Interval time in milliseconds for RTT polling loop.")
         END, required_argument, 0, OPT_POLLTIME},
@@ -429,6 +437,10 @@ void parse_args(int argc, char* argv[])
 
             case OPT_JLINKLIB:
                 options.jlink_lib = strdup(arg);
+                break;
+
+            case OPT_NRFJPROGLIB:
+                options.nrfjprog_lib = strdup(arg);
                 break;
 
             case OPT_POLLTIME:

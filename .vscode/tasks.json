@@ -6,7 +6,7 @@
         {
             "label": "make",
             "type": "shell",
-            "command": "make -j8",
+            "command": "make -j8 DEBUG=1 NRFJPROG_PATH=/dk/apps/nrf-tools/nrfjprog",
             "group": {
                 "kind": "build",
                 "isDefault": true

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <netinet/in.h>
-#include <nrfjprogdll.h>
+#include "dyn_nrfjprogdll.h"
 
 
 struct options_t
@@ -32,6 +32,7 @@ struct options_t
     device_family_t family;
     uint32_t speed;
     const char* jlink_lib;
+    const char* nrfjprog_lib;
 
     uint32_t poll_time_us;
     bool no_rtt_retry;

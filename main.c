@@ -12,17 +12,18 @@
 #include <signal.h>
 #include <errno.h>
 #include <nrfjprog.h>
-#include <nrfjprogdll.h>
-//#include <jlinkarm_nrf52_nrfjprogdll.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <getopt.h>
 #include <ctype.h>
 #include <arpa/inet.h>
+#include <dlfcn.h>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h> 
+
+#include "dyn_nrfjprogdll.h"
 
 #include "options.h"
 #include "slip.h"
@@ -62,10 +63,45 @@ uint16_t crc16_ccitt(uint16_t seed, const uint8_t *src, size_t len)
 int channel_up = -1;
 int channel_down = -1;
 
+void *nrfjprogdll = NULL;
+
+
+void load_nrfjprog(const char* lib_path)
+{
+    if (nrfjprogdll != NULL) return;
+
+    nrfjprogdll = dlopen(lib_path, RTLD_LAZY);
+    if (!nrfjprogdll)
+    {
+        fprintf(stderr, "NRFJPROG error: nrfjprog library cannot be open.\nSee --nrfjproglib option for help.\n");
+        exit(32);
+    }
+
+    dyn_NRFJPROG_open_dll = dlsym(nrfjprogdll, "NRFJPROG_open_dll");
+    dyn_NRFJPROG_dll_version = dlsym(nrfjprogdll, "NRFJPROG_dll_version");
+    dyn_NRFJPROG_connect_to_emu_with_snr = dlsym(nrfjprogdll, "NRFJPROG_connect_to_emu_with_snr");
+    dyn_NRFJPROG_connect_to_emu_without_snr = dlsym(nrfjprogdll, "NRFJPROG_connect_to_emu_without_snr");
+    dyn_NRFJPROG_read_connected_emu_snr = dlsym(nrfjprogdll, "NRFJPROG_read_connected_emu_snr");
+    dyn_NRFJPROG_read_device_family = dlsym(nrfjprogdll, "NRFJPROG_read_device_family");
+    dyn_NRFJPROG_close_dll = dlsym(nrfjprogdll, "NRFJPROG_close_dll");
+    dyn_NRFJPROG_connect_to_device = dlsym(nrfjprogdll, "NRFJPROG_connect_to_device");
+    dyn_NRFJPROG_rtt_start = dlsym(nrfjprogdll, "NRFJPROG_rtt_start");
+    dyn_NRFJPROG_rtt_is_control_block_found = dlsym(nrfjprogdll, "NRFJPROG_rtt_is_control_block_found");
+    dyn_NRFJPROG_rtt_read_channel_count = dlsym(nrfjprogdll, "NRFJPROG_rtt_read_channel_count");
+    dyn_NRFJPROG_rtt_read_channel_info = dlsym(nrfjprogdll, "NRFJPROG_rtt_read_channel_info");
+    dyn_NRFJPROG_rtt_stop = dlsym(nrfjprogdll, "NRFJPROG_rtt_stop");
+    dyn_NRFJPROG_disconnect_from_device = dlsym(nrfjprogdll, "NRFJPROG_disconnect_from_device");
+    dyn_NRFJPROG_disconnect_from_emu = dlsym(nrfjprogdll, "NRFJPROG_disconnect_from_emu");
+    dyn_NRFJPROG_rtt_write = dlsym(nrfjprogdll, "NRFJPROG_rtt_write");
+    dyn_NRFJPROG_rtt_read = dlsym(nrfjprogdll, "NRFJPROG_rtt_read");
+}
+
 nrfjprogdll_err_t open_jlink(device_family_t family)
 {
     int i;
     nrfjprogdll_err_t error;
+
+    load_nrfjprog(options.nrfjprog_lib);
 
     if (options.jlink_lib == NULL)
     {

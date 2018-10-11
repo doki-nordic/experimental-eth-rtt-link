@@ -19,11 +19,20 @@ ifeq (,$(NRFJPROG_REAL_PATH))
     $(error Cannot find nrfjprog directory.)
 endif
 
+ifeq (1,$(DEBUG))
+    CFLAGS=-g -O0
+    STRIP=echo Skipping strip
+else
+    CFLAGS=-O3
+    STRIP=strip
+endif
+
 all: slip2
 
 clean:
 	rm -f slip2
 
 slip2: main.c tap.c slip.c options.c
-	gcc -g -O0 -o $@ -pthread -I$(NRFJPROG_REAL_PATH) -L$(NRFJPROG_REAL_PATH) $^ -lnrfjprogdll -ldl
+	gcc -g -O0 -o $@ -I$(NRFJPROG_REAL_PATH) $^ -ldl
+	$(STRIP) $@
 
