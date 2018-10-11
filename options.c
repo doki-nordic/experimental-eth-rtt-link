@@ -55,7 +55,7 @@ struct options_t options =
     .snr = 0,
     .family = UNKNOWN_FAMILY,
     .speed = JLINKARM_SWD_DEFAULT_SPEED_KHZ,
-    .jlink_lib = "/opt/SEGGER/JLink/libjlinkarm.so.6",
+    .jlink_lib = NULL,
     .poll_time_us = 5 * 1000,
     .no_rtt_retry = false,
 };
@@ -116,8 +116,10 @@ static struct option long_options[] =
         DESC("resolution for the operation.")
         END, required_argument, 0, OPT_CLOCKSPEED},
     {"jlinklib"
-        DESC("Path to SEGGER J-Link library dll. Default is:")
-        DESC("/opt/SEGGER/JLink/libjlinkarm.so.6")
+        DESC("Path to SEGGER J-Link library dll. There is no")
+        DESC("need to provide it if dlopen() can find it or")
+        DESC("it is on its default location:")
+        DESC("/opt/SEGGER/JLink/libjlinkarm.so")
         END, required_argument, 0, OPT_JLINKLIB},
     {"polltime"
         DESC("Interval time in milliseconds for RTT polling loop.")
@@ -437,8 +439,12 @@ void parse_args(int argc, char* argv[])
                 options.no_rtt_retry = true;
                 break;
 
+            case '?':
+                // Error message already printed by getopt.
+                break;
+
             default:
-                fprintf(stderr, "Unexpected error");
+                fprintf(stderr, "Unexpected getopt error %02X", c);
                 exit(1);
         }
     } while (c >= 0);
@@ -458,17 +464,13 @@ void parse_args(int argc, char* argv[])
         printf("Version:                   %d.%d.%d\n", app_major_version, app_minor_version, app_micro_version);
         printf("Compiled with nrfjprogdll: %d.%d.%d\n", major_version, minor_version, micro_version);
 
-        nrfjprogdll_err_t err = NRFJPROG_open_dll(options.jlink_lib, dummy_nrfjprog_callback, options.family);
+        
+        nrfjprogdll_err_t open_jlink(device_family_t family); // TODO: move to header file
+
+        nrfjprogdll_err_t err = open_jlink(options.family);
         if (err != SUCCESS)
         {
-            if (err == JLINKARM_DLL_COULD_NOT_BE_OPENED)
-            {
-                fprintf(stderr, "NRFJPROG error: J-Link library cannot be open. See --jlinklib option in help.\n");
-            }
-            else
-            {
-                fprintf(stderr, "NRFJPROG error %d\n", err);
-            }
+            fprintf(stderr, "NRFJPROG error %d\n", err);
             exit(1);
         }
         err = NRFJPROG_dll_version(&major, &minor, revision);

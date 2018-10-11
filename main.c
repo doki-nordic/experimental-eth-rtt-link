@@ -29,6 +29,11 @@
 #include "tap.h"
 #include "logs.h"
 
+const char* jlink_lib_def[] = {
+    "libjlinkarm.so",
+    "/opt/SEGGER/JLink/libjlinkarm.so"
+};
+
 void infloop() { while (1); }
 
 //#define exit(x) infloop()
@@ -57,6 +62,36 @@ uint16_t crc16_ccitt(uint16_t seed, const uint8_t *src, size_t len)
 int channel_up = -1;
 int channel_down = -1;
 
+nrfjprogdll_err_t open_jlink(device_family_t family)
+{
+    int i;
+    nrfjprogdll_err_t error;
+
+    if (options.jlink_lib == NULL)
+    {
+        for (i = 0; i < sizeof(jlink_lib_def)/sizeof(jlink_lib_def[0]); i++)
+        {
+            error = NRFJPROG_open_dll(jlink_lib_def[i], nrfjprog_callback, family);
+            if (error == SUCCESS)
+            {
+                options.jlink_lib = jlink_lib_def[i];
+                return error;
+            }
+        }
+    }
+    else
+    {
+        error = NRFJPROG_open_dll(options.jlink_lib, nrfjprog_callback, family);
+    }
+
+    if (error == JLINKARM_DLL_COULD_NOT_BE_OPENED)
+    {
+        fprintf(stderr, "NRFJPROG error: J-Link library cannot be open. See --jlinklib option in help.\n");
+    }
+
+    return error;
+}
+
 static bool nrfjprog_init(bool do_exit)
 {
 	unsigned int i, up, down;
@@ -64,10 +99,10 @@ static bool nrfjprog_init(bool do_exit)
 
     if (options.family == UNKNOWN_FAMILY)
     {
-	    error = NRFJPROG_open_dll(options.jlink_lib, nrfjprog_callback, UNKNOWN_FAMILY);
+        error = open_jlink(UNKNOWN_FAMILY);
         if (error != SUCCESS)
         {
-            fprintf(stderr, "Cannot open JLink library!\n");
+            fprintf(stderr, "Cannot open JLink library %d!\n", error);
             if (do_exit) exit(1); else return false;
         }
         if (options.snr)
@@ -101,7 +136,7 @@ static bool nrfjprog_init(bool do_exit)
         NRFJPROG_close_dll();
     }
 
-	error = NRFJPROG_open_dll(options.jlink_lib, nrfjprog_callback, options.family);
+	error = open_jlink(options.family);
 	if (error != SUCCESS)
 	{
 		fprintf(stderr, "Cannot open JLink library!\n");
