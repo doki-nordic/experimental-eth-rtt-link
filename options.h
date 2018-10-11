@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <netinet/in.h>
-#include "dyn_nrfjprogdll.h"
+#include <nrfjprogdll.h>
 
 
 struct options_t

@@ -10,7 +10,7 @@
 #include <nrfjprog.h>
 #include <arpa/inet.h>
 
-#include "dyn_nrfjprogdll.h"
+#include <nrfjprogdll.h>
 
 #include "logs.h"
 #include "version.h"
@@ -237,6 +237,7 @@ int ci_strcmp(const char* a, const char* b)
     return 0;
 }
 
+nrfjprogdll_err_t get_jlink_version(uint32_t *a, uint32_t *b, char *c); // TODO: move to header file
 
 void parse_args(int argc, char* argv[])
 {
@@ -454,6 +455,7 @@ void parse_args(int argc, char* argv[])
 
     if (show_version)
     {
+        nrfjprogdll_err_t err;
         uint32_t major = 0;
         uint32_t minor = 0;
         char revision[32] = "0";
@@ -461,16 +463,7 @@ void parse_args(int argc, char* argv[])
         printf("Version:                   %d.%d.%d\n", app_major_version, app_minor_version, app_micro_version);
         printf("Compiled with nrfjprogdll: %d.%d.%d\n", major_version, minor_version, micro_version);
 
-        
-        nrfjprogdll_err_t open_jlink(device_family_t family); // TODO: move to header file
-
-        nrfjprogdll_err_t err = open_jlink(options.family);
-        if (err != SUCCESS)
-        {
-            O_FATAL("NRFJPROG error %d", err);
-        }
-        err = NRFJPROG_dll_version(&major, &minor, revision);
-        NRFJPROG_close_dll();
+        err = get_jlink_version(&major, &minor, revision);
         if (err != SUCCESS)
         {
             O_FATAL("NRFJPROG error %d", err);

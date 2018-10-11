@@ -123,6 +123,18 @@ nrfjprogdll_err_t open_jlink(device_family_t family)
     return error;
 }
 
+nrfjprogdll_err_t get_jlink_version(uint32_t *major, uint32_t *minor, char *revision)
+{
+    nrfjprogdll_err_t err = open_jlink(options.family);
+    if (err != SUCCESS)
+    {
+        return err;
+    }
+    err = NRFJPROG_dll_version(major, minor, revision);
+    NRFJPROG_close_dll();
+    return err;
+}
+
 static bool nrfjprog_init()
 {
 	unsigned int i, up, down;
