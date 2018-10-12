@@ -32,7 +32,7 @@ all: eth_rtt_link
 clean:
 	rm -f eth_rtt_link
 
-eth_rtt_link: *.c *.h
-	gcc $(CFLAGS) -o $@ -I$(NRFJPROG_REAL_PATH) $^ -ldl
+eth_rtt_link: Makefile *.c *.h
+	gcc $(CFLAGS) -o $@ -I$(NRFJPROG_REAL_PATH) $(filter %.c,$^) -ldl
 	$(STRIP) $@
 

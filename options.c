@@ -75,11 +75,10 @@ static struct option long_options[] =
         DESC("Set verbosity level:")
         DESC("  0 - disable all messages")
         DESC("  1 - inform only about errors (default)")
-        DESC("  2 - prints information (assumed if no argument")
-        DESC("      provided)")
+        DESC("  2 - prints information")
         DESC("  3 - prints debugs")
         DESC("  4 - prints debugs and nrfjprogdll messages")
-        END, optional_argument, 0, OPT_VERBOSE},
+        END, required_argument, 0, OPT_VERBOSE},
     {"ipv4"
         DESC("IPv4 address. May include netmask bits count at")
         DESC("the end, e.g. 192.168.1.1/24")
@@ -95,10 +94,11 @@ static struct option long_options[] =
         DESC("the end, e.g. 2001:db8::/32")
         END, required_argument, 0, OPT_IPV6},
     {"mac"
-        DESC("MAC address")
+        DESC("MAC address. By default operating system will")
+        DESC("assign a random address.")
         END, required_argument, 0, OPT_MAC},
     {"mtu"
-        DESC("Maximum transmission unit")
+        DESC("Maximum transmission unit. Default 1500.")
         END, required_argument, 0, OPT_MTU},
     {"iface"
         DESC("Sets network interface name. Default is tap0 where")
@@ -160,11 +160,7 @@ void print_help()
 
         strcpy(line, str);
 
-        if (opt->has_arg == optional_argument)
-        {
-            strcat(line, " [val]");
-        }
-        else if (opt->has_arg == required_argument)
+        if (opt->has_arg == required_argument)
         {
             strcat(line, " <val>");
         }

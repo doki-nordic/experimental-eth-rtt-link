@@ -62,7 +62,7 @@ DecoderContext ctx;
 
 
 
-static volatile bool exit_loop = 0;
+static volatile bool exit_loop = false;
 
 void my_handler(int s)
 {
