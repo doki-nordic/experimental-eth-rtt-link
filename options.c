@@ -10,8 +10,7 @@
 #include <nrfjprog.h>
 #include <arpa/inet.h>
 
-#include "dyn_nrfjprogdll.h"
-
+#include "rtt.h"
 #include "logs.h"
 #include "version.h"
 
@@ -237,8 +236,6 @@ int ci_strcmp(const char* a, const char* b)
     return 0;
 }
 
-nrfjprogdll_err_t get_jlink_version(uint32_t *a, uint32_t *b, char *c); // TODO: move to header file
-
 void parse_args(int argc, char* argv[])
 {
     bool show_version = false;
@@ -455,7 +452,6 @@ void parse_args(int argc, char* argv[])
 
     if (show_version)
     {
-        nrfjprogdll_err_t err;
         uint32_t major = 0;
         uint32_t minor = 0;
         char revision[32] = "0";
@@ -463,10 +459,9 @@ void parse_args(int argc, char* argv[])
         printf("Version:                   %d.%d.%d\n", APP_MAJOR_VERSION, APP_MINOR_VERSION, APP_MICRO_VERSION);
         printf("Compiled with nrfjprogdll: %d.%d.%d\n", major_version, minor_version, micro_version);
 
-        err = get_jlink_version(&major, &minor, revision);
-        if (err != SUCCESS)
+        if (!get_jlink_version(&major, &minor, revision))
         {
-            O_FATAL("NRFJPROG error %d", err);
+            O_FATAL("NRFJPROG error");
         }
         printf("Loaded SEGGER J-Link:      %d.%d%s\n", major, minor, revision);
 
