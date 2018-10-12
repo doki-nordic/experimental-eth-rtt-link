@@ -51,6 +51,31 @@ void setup_ipv4_data(int socket, unsigned long cmd, struct in_addr * addr, const
     }
 }
 
+void renew_ipv6_address()
+{
+    if (options.ipv6_address_present)
+    {
+        struct ifreq ifr;
+        memset(&ifr, 0, sizeof(ifr));
+        strncpy(ifr.ifr_name, iface_name, IFNAMSIZ);
+        if (ioctl(conf_socket, SIOGIFINDEX, &ifr) < 0) {
+            U_ERRNO_FATAL("Cannot get interface index.");
+        }
+
+        struct in6_ifreq ifr6;
+        memset(&ifr6, 0, sizeof(ifr6));
+        memcpy(&ifr6.ifr6_addr, &options.ipv6_address, sizeof(options.ipv6_address));
+        ifr6.ifr6_prefixlen = options.ipv6_subnet_bits < 0 ? 64 : options.ipv6_subnet_bits;
+        ifr6.ifr6_ifindex = ifr.ifr_ifindex;
+
+        if (ioctl(conf_socket, SIOCSIFADDR, &ifr6) < 0) {
+            if (errno != EEXIST)
+            {
+                U_ERRNO_FATAL("Cannot set IPv6 address.");
+            }
+        }
+    }
+}
 
 void tap_create()
 {
@@ -132,35 +157,15 @@ void tap_create()
         if ((ipv6_socket = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
             U_ERRNO_FATAL("Cannot create IPv6 socket.");
         }
-
-        memset(&ifr, 0, sizeof(ifr));
-        strncpy(ifr.ifr_name, iface_name, IFNAMSIZ);
-		if (ioctl(ipv6_socket, SIOGIFINDEX, &ifr) < 0) {
-            U_ERRNO_FATAL("Cannot get interface index.");
-		}
-
-        struct in6_ifreq ifr6;
-        memset(&ifr6, 0, sizeof(ifr6));
-        memcpy(&ifr6.ifr6_addr, &options.ipv6_address, sizeof(options.ipv6_address));
-        ifr6.ifr6_prefixlen = options.ipv6_subnet_bits < 0 ? 128 : options.ipv6_subnet_bits;
-        ifr6.ifr6_ifindex = ifr.ifr_ifindex;
-
-		if (ioctl(ipv6_socket, SIOCSIFADDR, &ifr6) < 0) {
-            U_ERRNO_FATAL("Cannot set IPv6 address.");
-		}
-
-        close(ipv6_socket);
-    }
-
-    if (ipv4_socket >= 0)
-    {
-        conf_socket = ipv4_socket;
-        if (ipv6_socket >= 0) close(ipv6_socket);
+        conf_socket = ipv6_socket;
+        if (ipv4_socket >= 0) close(ipv4_socket);
     }
     else
     {
-        conf_socket = ipv6_socket;
+        conf_socket = ipv4_socket;
     }
+
+    renew_ipv6_address();
 }
 
 
@@ -215,4 +220,9 @@ void tap_set_state(bool up)
     }
 
     set_flags();
+
+    if (up)
+    {
+        renew_ipv6_address();
+    }
 }
