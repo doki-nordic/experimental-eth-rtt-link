@@ -460,7 +460,7 @@ void parse_args(int argc, char* argv[])
         uint32_t minor = 0;
         char revision[32] = "0";
 
-        printf("Version:                   %d.%d.%d\n", app_major_version, app_minor_version, app_micro_version);
+        printf("Version:                   %d.%d.%d\n", APP_MAJOR_VERSION, APP_MINOR_VERSION, APP_MICRO_VERSION);
         printf("Compiled with nrfjprogdll: %d.%d.%d\n", major_version, minor_version, micro_version);
 
         err = get_jlink_version(&major, &minor, revision);

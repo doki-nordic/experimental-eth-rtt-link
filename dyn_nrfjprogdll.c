@@ -7,7 +7,7 @@
 #include "dyn_nrfjprogdll.h"
 
 
-#define LOAD_SYMBOL(name) do { if (!(_dyn_##name = dlsym(nrfjprogdll, #name))) return #name; } while (0)
+#define LOAD_SYMBOL(name) do { if (!(_dyn_##name = dlsym(dll, #name))) { dlclose(dll); return #name; } } while (0)
 
 
 static void* nrfjprogdll = NULL;
@@ -15,10 +15,12 @@ static void* nrfjprogdll = NULL;
 
 char* load_nrfjprogdll(const char* lib_path)
 {
+    void *dll;
+
     if (nrfjprogdll != NULL) return NULL;
 
-    nrfjprogdll = dlopen(lib_path, RTLD_LAZY);
-    if (!nrfjprogdll)
+    dll = dlopen(lib_path, RTLD_LAZY);
+    if (!dll)
     {
         return "";
     }
@@ -40,6 +42,8 @@ char* load_nrfjprogdll(const char* lib_path)
     LOAD_SYMBOL(NRFJPROG_disconnect_from_emu);
     LOAD_SYMBOL(NRFJPROG_rtt_write);
     LOAD_SYMBOL(NRFJPROG_rtt_read);
+
+    nrfjprogdll = dll;
 
     return NULL;
 }

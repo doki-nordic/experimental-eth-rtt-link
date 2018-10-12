@@ -19,48 +19,22 @@
 #define TUN_DEV_NAME "/dev/net/tun"
 #define IF_UP_DOWN_SLEEP_US (500 * 1000)
 
-struct in6_ifreq {
+struct in6_ifreq
+{
     struct in6_addr ifr6_addr;
     __u32 ifr6_prefixlen;
     unsigned int ifr6_ifindex;
 };
 
-char iface_name[32];
-
+static char iface_name[32];
 
 int tap_fd = -1;
-int conf_socket = -1;
+static int conf_socket = -1;
 
 #define SUPPORTED_FLAGS (IFF_UP | IFF_BROADCAST | IFF_RUNNING)
+
 uint32_t tap_flags = 0;
 
-#if 0
-static void set_ipv4(const char* address, const char* net_mask)
-{
-	// http://man7.org/linux/man-pages/man7/netdevice.7.html
-
-	struct ifreq req;
-	strcpy(req.ifr_ifrn.ifrn_name, todo_name);
-	struct sockaddr * addr = &req.ifr_ifru.ifru_addr;
-	memset(addr, 0, sizeof(*addr));
-	addr->sa_family = AF_INET;
-	sa_family_t;
-}
-
-static void set_ipv6(const char* address, prefix_len)
-{
-	// https://stackoverflow.com/questions/8240724/assign-ipv6-address-using-ioctl
-
-
-	struct in6_ifreq {
-	    struct in6_addr addr;
-	    uint32_t        prefixlen;
-	    unsigned int    ifindex;
-	};
-
-    struct in6_ifreq ifr6;
-}
-#endif
 
 void setup_ipv4_data(int socket, unsigned long cmd, struct in_addr * addr, const char* info)
 {
@@ -71,10 +45,12 @@ void setup_ipv4_data(int socket, unsigned long cmd, struct in_addr * addr, const
 
     ifr.ifr_addr.sa_family = AF_INET;
     memcpy(&((struct sockaddr_in*)(&ifr.ifr_addr))->sin_addr, addr, sizeof(struct in_addr));
-    if (ioctl(socket, cmd, &ifr) < 0) {
-        U_FATAL("Cannot change IPv4 %s [%d] %s.", info, errno, strerror(errno));
+    if (ioctl(socket, cmd, &ifr) < 0)
+    {
+        U_ERRNO_FATAL("Cannot change IPv4 %s.", info);
     }
 }
+
 
 void tap_create()
 {

@@ -382,16 +382,39 @@ void buffered_rtt_write(uint8_t* data, int num)
     PRINT_DEBUG("Written to queue %d, total %d", num, queue_buffered);
 }
 
+static volatile bool exit_loop = 0;
+
+void my_handler(int s)
+{
+    PRINT_DEBUG("Caught signal %d in %d (parent %d)",s, getpid(), getppid());
+    if (exit_loop)
+    {
+        PRINT_ERROR("Forcing process to terminate.");
+        exit(TERMINATION_EXIT_CODE);
+    }
+    exit_loop = true;
+}
+
 int main(int argc, char* argv[])
 {
     parse_args(argc, argv);
     tap_create();
 
+    signal(SIGINT, my_handler);
+
     if (!options.no_rtt_retry)
     {
         do
         {
+            if (exit_loop)
+            {
+                tap_delete();
+                PRINT_INFO("TERMINATED parent process");
+                exit(TERMINATION_EXIT_CODE);
+            }
+
             int pid = fork();
+
             if (pid < 0)
             {
                 U_ERRNO_FATAL("Cannot fork process!");
@@ -407,14 +430,21 @@ int main(int argc, char* argv[])
                 pid_t r = waitpid(pid, &wstatus, 0);
                 tap_set_state(false);
                 PRINT_INFO("PID %d, %d", r, WEXITSTATUS(wstatus));
-                if (WEXITSTATUS(wstatus) != RECOVERABLE_FATAL_CODE)
+                if (WEXITSTATUS(wstatus) == TERMINATION_EXIT_CODE && r >= 0)
+                {
+                    exit_loop = true;
+                }
+                else if (WEXITSTATUS(wstatus) != RECOVERABLE_EXIT_CODE && r >= 0)
                 {
                     exit(wstatus);
                 }
-                usleep(1000 * 1000);
+                else if (!exit_loop)
+                {
+                    usleep(1000 * 1000);
+                }
             }
         }
-        while (1);
+        while (true);
     }
 
     uint32_t len;
@@ -425,7 +455,8 @@ int main(int argc, char* argv[])
     slip_decode_init(&ctx);
 
     PRINT_INFO("BEGIN");
-    while (true)
+
+    while (!exit_loop)
     {
         fd_set rfds;
         struct timeval tv;
@@ -500,10 +531,15 @@ int main(int argc, char* argv[])
         }
         write_queue();
     }
-    PRINT_INFO("END");
 
-    tap_delete();
+    PRINT_INFO("TERMINATED");
 
     NRFJPROG_close_dll();
-    return 0;
+
+    if (options.no_rtt_retry)
+    {
+        tap_delete();
+    }
+
+    return TERMINATION_EXIT_CODE;
 }

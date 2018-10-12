@@ -27,12 +27,12 @@ else
     STRIP=strip
 endif
 
-all: slip2
+all: eth_rtt_link
 
 clean:
-	rm -f slip2
+	rm -f eth_rtt_link
 
-slip2: main.c tap.c slip.c options.c dyn_nrfjprogdll.c
-	gcc -g -O0 -o $@ -I$(NRFJPROG_REAL_PATH) $^ -ldl
+eth_rtt_link: *.c *.h
+	gcc $(CFLAGS) -o $@ -I$(NRFJPROG_REAL_PATH) $^ -ldl
 	$(STRIP) $@
 
