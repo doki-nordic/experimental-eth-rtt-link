@@ -119,8 +119,13 @@ int main(int argc, char* argv[])
                 PRINT_INFO("Child process %d", pid);
                 pid_t r = waitpid(pid, &wstatus, 0);
                 tap_set_state(false);
-                PRINT_INFO("PID %d, %d", r, WEXITSTATUS(wstatus));
-                if (WEXITSTATUS(wstatus) == TERMINATION_EXIT_CODE && r >= 0)
+                PRINT_INFO("PID %d, %d, %d", r, WEXITSTATUS(wstatus), wstatus);
+                if (WIFSIGNALED(wstatus) && !exit_loop)
+                {
+                    PRINT_ERROR("Unexpected child %d exit, signal %d", pid, WTERMSIG(wstatus));
+                    usleep(1000 * 1000);
+                }
+                else if (WEXITSTATUS(wstatus) == TERMINATION_EXIT_CODE && r >= 0)
                 {
                     exit_loop = true;
                 }
