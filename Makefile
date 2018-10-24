@@ -27,12 +27,16 @@ else
     STRIP=strip
 endif
 
+-include version.make
+
 all: eth_rtt_link
 
 clean:
 	rm -f eth_rtt_link
 
-eth_rtt_link: Makefile *.c *.h
+eth_rtt_link: Makefile version.make *.c *.h
 	gcc $(CFLAGS) -o $@ -I$(NRFJPROG_REAL_PATH) $(filter %.c,$^) -ldl
 	$(STRIP) $@
 
+version.make: get_version.sh $(wildcard .git/HEAD) $(wildcard .git/refs/tags/*)
+	bash get_version.sh
