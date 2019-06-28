@@ -42,6 +42,8 @@ struct options_t
 
     uint32_t poll_time_us;
     bool no_rtt_retry;
+
+    const char* hang_file;
 };
 
 extern struct options_t options;

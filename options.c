@@ -38,6 +38,7 @@
 #define OPT_IPV4MASK (0x100 + 5)
 #define OPT_IPV4BROADCAST (0x100 + 6)
 #define OPT_NRFJPROGLIB (0x100 + 7)
+#define OPT_HANGFILE (0x100 + 8)
 
 
 #define DESC(text) "\0" text
@@ -65,6 +66,7 @@ struct options_t options =
     .nrfjprog_lib = "libnrfjprogdll.so",
     .poll_time_us = 5 * 1000,
     .no_rtt_retry = false,
+    .hang_file = NULL,
 };
 
 
@@ -137,9 +139,13 @@ static struct option long_options[] =
         DESC("Interval time in milliseconds for RTT polling loop.")
         END, required_argument, 0, OPT_POLLTIME},
     {"norttretry"
-        DESC("Do not rry to recover from RTT errors by restarting")
+        DESC("Do not try to recover from RTT errors by restarting")
         DESC("entire process")
         END, no_argument, 0, OPT_NORTTRETRY},
+    {"hangfile"
+        DESC("File that will be polled. If it exists link will")
+        DESC("be temporary stopped until file is deleted.")
+        END, required_argument, 0, OPT_HANGFILE},
     {0, 0, 0, 0}
 };
 
@@ -435,6 +441,10 @@ void parse_args(int argc, char* argv[])
 
             case OPT_NORTTRETRY:
                 options.no_rtt_retry = true;
+                break;
+
+            case OPT_HANGFILE:
+                options.hang_file = strdup(arg);
                 break;
 
             case '?':

@@ -6,6 +6,7 @@
 
 #include <sys/select.h>
 #include <sys/time.h>
+#include <time.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -90,6 +91,16 @@ void send_frame_to_rtt(uint8_t * ptr, int num)
     buffered_rtt_write(buffer2, num);
 }
 
+bool is_hang()
+{
+    if (options.hang_file && access(options.hang_file, 0 ) >= 0)
+    {
+        PRINT_INFO("Link is hang");
+        return true;
+    }
+    return false;
+}
+
 int main(int argc, char* argv[])
 {
     parse_args(argc, argv);
@@ -101,6 +112,11 @@ int main(int argc, char* argv[])
     {
         do
         {
+            while (is_hang() && !exit_loop)
+            {
+                usleep(1000 * 1000);
+            }
+
             if (exit_loop)
             {
                 tap_delete();
@@ -116,6 +132,10 @@ int main(int argc, char* argv[])
             }
             else if (pid == 0)
             {
+                if (is_hang())
+                {
+                    exit(RECOVERABLE_EXIT_CODE);
+                }
                 break;
             }
             else
@@ -158,6 +178,12 @@ int main(int argc, char* argv[])
 
     send_frame_to_rtt(reset_frame_data, sizeof(reset_frame_data) - 2);
 
+    int last_hang_check;
+    if (options.hang_file)
+    {
+        last_hang_check = time(NULL);
+    }
+
     while (!exit_loop)
     {
         fd_set rfds;
@@ -168,6 +194,17 @@ int main(int argc, char* argv[])
         tv.tv_sec = 0;
         tv.tv_usec = options.poll_time_us;
         retval = select(tap_fd + 1, &rfds, NULL, NULL, &tv);
+
+        if (options.hang_file)
+        {
+            int t = time(NULL);
+            if (last_hang_check != t && is_hang())
+            {
+                exit(RECOVERABLE_EXIT_CODE);
+            }
+            last_hang_check = t;
+        }
+
         if (retval < 0)
         {
             perror("select()");
