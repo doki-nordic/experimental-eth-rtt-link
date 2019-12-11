@@ -37,6 +37,7 @@ struct options_t
     uint32_t snr;
     device_family_t family;
     uint32_t speed;
+    uint32_t rtt_cb_address;
     const char* jlink_lib;
     const char* nrfjprog_lib;
 

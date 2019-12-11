@@ -38,6 +38,7 @@ char* load_nrfjprogdll(const char* lib_path)
     LOAD_SYMBOL(NRFJPROG_read_device_family);
     LOAD_SYMBOL(NRFJPROG_close_dll);
     LOAD_SYMBOL(NRFJPROG_connect_to_device);
+    LOAD_SYMBOL(NRFJPROG_rtt_set_control_block_address);
     LOAD_SYMBOL(NRFJPROG_rtt_start);
     LOAD_SYMBOL(NRFJPROG_rtt_is_control_block_found);
     LOAD_SYMBOL(NRFJPROG_rtt_read_channel_count);

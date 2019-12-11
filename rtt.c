@@ -156,7 +156,15 @@ bool nrfjprog_init()
 	{
 		R_FATAL("Cannot connect to device!");
 	}
-	
+
+    if (options.rtt_cb_address != 0)
+    {
+	    error = NRFJPROG_rtt_set_control_block_address(options.rtt_cb_address);
+    	if (error != SUCCESS)
+    	{
+    		R_FATAL("Cannot set RTT control block address!");
+    	}
+    }
 
 	error = NRFJPROG_rtt_start();
 	if (error != SUCCESS)

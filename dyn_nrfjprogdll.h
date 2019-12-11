@@ -17,6 +17,7 @@
 #define NRFJPROG_read_device_family _DYN_LOAD_MACRO(NRFJPROG_read_device_family)
 #define NRFJPROG_close_dll _DYN_LOAD_MACRO(NRFJPROG_close_dll)
 #define NRFJPROG_connect_to_device _DYN_LOAD_MACRO(NRFJPROG_connect_to_device)
+#define NRFJPROG_rtt_set_control_block_address _DYN_LOAD_MACRO(NRFJPROG_rtt_set_control_block_address)
 #define NRFJPROG_rtt_start _DYN_LOAD_MACRO(NRFJPROG_rtt_start)
 #define NRFJPROG_rtt_is_control_block_found _DYN_LOAD_MACRO(NRFJPROG_rtt_is_control_block_found)
 #define NRFJPROG_rtt_read_channel_count _DYN_LOAD_MACRO(NRFJPROG_rtt_read_channel_count)

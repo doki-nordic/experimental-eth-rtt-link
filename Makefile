@@ -39,6 +39,9 @@ all: eth_rtt_link
 clean:
 	rm -f eth_rtt_link
 
+setcap: eth_rtt_link
+	sudo setcap cap_net_admin=eip ./eth_rtt_link
+
 eth_rtt_link: Makefile version.make *.c *.h
 	gcc $(CFLAGS) -o $@ -I$(NRFJPROG_REAL_PATH) $(filter %.c,$^) -ldl
 	$(STRIP) $@

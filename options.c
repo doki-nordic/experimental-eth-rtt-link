@@ -30,6 +30,7 @@
 #define OPT_CLOCKSPEED 'c'
 #define OPT_IFACE 'i'
 #define OPT_FAMILY 'f'
+#define OPT_CB_ADDRESS 'a'
 #define OPT_MTU (0x100 + 0)
 #define OPT_VER (0x100 + 1)
 #define OPT_POLLTIME (0x100 + 2)
@@ -62,6 +63,7 @@ struct options_t options =
     .snr = 0,
     .family = UNKNOWN_FAMILY,
     .speed = JLINKARM_SWD_DEFAULT_SPEED_KHZ,
+    .rtt_cb_address = 0,
     .jlink_lib = NULL,
     .nrfjprog_lib = "libnrfjprogdll.so",
     .poll_time_us = 5 * 1000,
@@ -124,6 +126,9 @@ static struct option long_options[] =
         DESC("Sets the debugger SWD clock speed in kHz")
         DESC("resolution for the operation.")
         END, required_argument, 0, OPT_CLOCKSPEED},
+    {"rttcbaddr"
+        DESC("Sets address where RTT control block is localted.")
+        END, required_argument, 0, OPT_CB_ADDRESS},
     {"jlinklib"
         DESC("Path to SEGGER J-Link library dll. There is no")
         DESC("need to provide it if dlopen() can find it or")
@@ -425,6 +430,10 @@ void parse_args(int argc, char* argv[])
 
             case OPT_CLOCKSPEED:
                 options.speed = parse_arg_uint(arg, JLINKARM_SWD_MIN_SPEED_KHZ, JLINKARM_SWD_MAX_SPEED_KHZ);
+                break;
+
+            case OPT_CB_ADDRESS:
+                options.rtt_cb_address = parse_arg_uint(arg, 0, 0xFFFFFFFF);
                 break;
 
             case OPT_JLINKLIB:
